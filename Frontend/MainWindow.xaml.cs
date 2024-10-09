@@ -1,6 +1,10 @@
 ﻿using Microsoft.Win32;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.IO.Pipes;
+using System.Security.Principal;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -158,7 +162,26 @@ namespace Frontend
 
         private async void GetLabels()
         {
-            await Task.WhenAll(vulnurabilities.Select(x => x.GetLabel(hostInfo)));
+            //await Task.WhenAll(vulnurabilities.Select(x => x.GetLabel(hostInfo)));
+
+            using (var client = new NamedPipeClientStream(".", "vuln", PipeDirection.InOut))
+            {
+                client.Connect();
+
+                using (var reader = new StreamReader(client))
+                using (var writer = new StreamWriter(client) { AutoFlush = true })
+                {
+                    foreach (Vulnurability vuln in vulnurabilities)
+                    {
+                        string message = vuln.Name;
+
+                        writer.WriteLine(message);
+                        string response = reader.ReadLine();
+                        vuln.Label = response;
+                    }
+                }
+            }
+
             dgVulnurabilities.Items.Refresh();
             cbLabels.ItemsSource = vulnurabilities.Select(x => x.Label).Distinct().Prepend("All");
         }
